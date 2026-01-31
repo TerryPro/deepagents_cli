@@ -18,7 +18,9 @@ from textual.events import Click, MouseUp, Resize
 from textual.widgets import Static
 
 from deepagents_cli.clipboard import copy_selection_to_clipboard
+from deepagents_cli.sessions import get_thread_title, save_thread_title
 from deepagents_cli.textual_adapter import TextualUIAdapter, execute_task_textual
+from deepagents_cli.title_generator import TitleGenerator
 from deepagents_cli.widgets.approval import ApprovalMenu
 from deepagents_cli.widgets.chat_input import ChatInput
 from deepagents_cli.widgets.loading import LoadingWidget
@@ -508,14 +510,6 @@ class DeepAgentsApp(App):
         if self._status_bar:
             self._status_bar.set_mode(event.mode)
 
-    def on_chat_input_needs_scroll_to_bottom(self, event: ChatInput.NeedsScrollToBottom) -> None:  # noqa: ARG002
-        """Scroll chat to bottom when command completion is activated."""
-        try:
-            chat = self.query_one("#chat", VerticalScroll)
-            chat.scroll_end(animate=False)
-        except NoMatches:
-            pass
-
     async def on_approval_menu_decided(
         self,
         event: Any,  # noqa: ANN401, ARG002
@@ -565,8 +559,9 @@ class DeepAgentsApp(App):
             if result.returncode != 0:
                 await self._mount_message(ErrorMessage(f"Exit code: {result.returncode}"))
 
-            # Scroll to show the output after content is fully rendered
-            self.call_after_refresh(self._scroll_chat_to_bottom)
+            # Scroll to show the output (user-initiated command, so scroll is expected)
+            chat = self.query_one("#chat", VerticalScroll)
+            chat.scroll_end(animate=False)
 
         except subprocess.TimeoutExpired:
             await self._mount_message(ErrorMessage("Command timed out (60s limit)"))
@@ -586,7 +581,7 @@ class DeepAgentsApp(App):
         elif cmd == "/help":
             await self._mount_message(UserMessage(command))
             await self._mount_message(
-                SystemMessage("Commands: /quit, /clear, /remember, /tokens, /threads, /skills, /shell, /help")
+                SystemMessage("Commands: /quit, /clear, /remember, /tokens, /threads, /help")
             )
 
         elif cmd == "/version":
@@ -611,9 +606,12 @@ class DeepAgentsApp(App):
         elif cmd == "/threads":
             await self._mount_message(UserMessage(command))
             if self._session_state:
-                await self._mount_message(
-                    SystemMessage(f"Current session: {self._session_state.thread_id}")
-                )
+                title = await get_thread_title(self._session_state.thread_id)
+                if title:
+                    msg = f"Current session: {self._session_state.thread_id} ({title})"
+                else:
+                    msg = f"Current session: {self._session_state.thread_id}"
+                await self._mount_message(SystemMessage(msg))
             else:
                 await self._mount_message(SystemMessage("No active session"))
         elif cmd == "/tokens":
@@ -644,107 +642,9 @@ class DeepAgentsApp(App):
             # Send as a user message to the agent
             await self._handle_user_message(final_prompt)
             return  # _handle_user_message already mounts the message
-        elif cmd == "/skills":
-            await self._mount_message(UserMessage(command))
-            await self._handle_skills_command()
-        elif cmd == "/shell" or cmd.startswith("/shell "):
-            # Extract the shell command after /shell
-            shell_cmd = command[7:].strip() if cmd.startswith("/shell ") else ""
-            if shell_cmd:
-                await self._handle_shell_slash_command(shell_cmd)
-            else:
-                await self._mount_message(UserMessage(command))
-                await self._mount_message(SystemMessage("Usage: /shell <command>\nExample: /shell ls -la"))
         else:
             await self._mount_message(UserMessage(command))
             await self._mount_message(SystemMessage(f"Unknown command: {cmd}"))
-
-    async def _handle_skills_command(self) -> None:
-        """Handle the /skills command to list available skills."""
-        from deepagents_cli.skills.load import list_skills
-        from deepagents_cli.config import Settings
-
-        settings = Settings.from_environment()
-        user_skills_dir = settings.get_user_skills_dir(self._assistant_id or "agent")
-        project_skills_dir = settings.get_project_skills_dir()
-
-        # Load both user and project skills
-        skills = list_skills(user_skills_dir=user_skills_dir, project_skills_dir=project_skills_dir)
-
-        if not skills:
-            await self._mount_message(SystemMessage("No skills found.\n\nSkills will be created in ~/.deepagents/agent/skills/ when you add them.\n\nCreate your first skill:\n  deepagents skills create my-skill"))
-            return
-
-        # Group skills by source
-        user_skills = [s for s in skills if s["source"] == "user"]
-        project_skills_list = [s for s in skills if s["source"] == "project"]
-
-        # Build the output
-        lines: list[str] = []
-        lines.append(f"Available Skills ({len(skills)} total)\n")
-
-        # Show user skills
-        if user_skills:
-            lines.append("User Skills:")
-            for skill in user_skills:
-                lines.append(f"  • {skill['name']}")
-                lines.append(f"    {skill['description']}")
-            lines.append("")
-
-        # Show project skills
-        if project_skills_list:
-            lines.append("Project Skills:")
-            for skill in project_skills_list:
-                lines.append(f"  • {skill['name']}")
-                lines.append(f"    {skill['description']}")
-            lines.append("")
-
-        lines.append("Use 'deepagents skills info <name>' for detailed information.")
-
-        await self._mount_message(SystemMessage("\n".join(lines)))
-
-    async def _handle_shell_slash_command(self, command: str) -> None:
-        """Handle the /shell command to execute shell commands.
-
-        Args:
-            command: The shell command to execute (without the /shell prefix)
-        """
-        # Mount user message showing the command
-        await self._mount_message(UserMessage(f"/shell {command}"))
-
-        # Execute the bash command (shell=True is intentional for user-requested bash)
-        try:
-            result = await asyncio.to_thread(  # noqa: S604
-                subprocess.run,
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                cwd=self._cwd,
-                timeout=60,
-            )
-            output = result.stdout.strip()
-            if result.stderr:
-                output += f"\n[stderr]\n{result.stderr.strip()}"
-
-            if output:
-                # Display output as assistant message (uses markdown for code blocks)
-                msg = AssistantMessage(f"```\n{output}\n```")
-                await self._mount_message(msg)
-                await msg.write_initial_content()
-            else:
-                await self._mount_message(SystemMessage("Command completed (no output)"))
-
-            if result.returncode != 0:
-                await self._mount_message(ErrorMessage(f"Exit code: {result.returncode}"))
-
-            # Scroll to show the output after content is fully rendered
-            self.call_after_refresh(self._scroll_chat_to_bottom)
-
-        except subprocess.TimeoutExpired:
-            await self._mount_message(ErrorMessage("Command timed out (60s limit)"))
-        except OSError as e:
-            await self._mount_message(ErrorMessage(str(e)))
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle a user message to send to the agent.
@@ -759,6 +659,10 @@ class DeepAgentsApp(App):
         chat = self.query_one("#chat", VerticalScroll)
         if chat.max_scroll_y > 0:
             chat.scroll_end(animate=False)
+
+        # Trigger title generation for first message in new session
+        if self._agent and self._session_state and self._lc_thread_id:
+            asyncio.create_task(self._maybe_generate_title(message))
 
         # Check if agent is available
         if self._agent and self._ui_adapter and self._session_state:
@@ -779,6 +683,27 @@ class DeepAgentsApp(App):
             await self._mount_message(
                 SystemMessage("Agent not configured. Run with --agent flag or use standalone mode.")
             )
+
+    async def _maybe_generate_title(self, first_message: str) -> None:
+        """Generate title for new session if not already exists.
+
+        Args:
+            first_message: User's first message
+        """
+        if not self._lc_thread_id:
+            return
+
+        # Check if title already exists
+        existing = await get_thread_title(self._lc_thread_id)
+        if existing:
+            return  # Title already generated
+
+        # Generate title
+        generator = TitleGenerator()
+        title = await generator.generate_title(first_message)
+
+        if title:
+            await save_thread_title(self._lc_thread_id, title)
 
     async def _run_agent_task(self, message: str) -> None:
         """Run the agent task in a background worker.
@@ -911,7 +836,12 @@ class DeepAgentsApp(App):
                     widget.set_rejected()  # Shows as interrupted/rejected in UI
 
             # Show system message indicating this is a resumed session
-            await self._mount_message(SystemMessage(f"Resumed session: {self._lc_thread_id}"))
+            title = await get_thread_title(self._lc_thread_id)
+            if title:
+                msg = f"Resumed session: {self._lc_thread_id} ({title})"
+            else:
+                msg = f"Resumed session: {self._lc_thread_id}"
+            await self._mount_message(SystemMessage(msg))
 
             # Scroll to bottom after UI fully renders
             # Use set_timer to ensure layout is complete (Markdown rendering is async)

@@ -56,9 +56,17 @@ async def _table_exists(conn: aiosqlite.Connection, table: str) -> bool:
     async with conn.execute(query, (table,)) as cursor:
         return await cursor.fetchone() is not None
 
-async def _create_titles_table(conn: aiosqlite.Connection) -> None:
-    """Create thread_titles table if not exists."""
-    await conn.execute("""
+
+async def _create_titles_table(conn: aiosqlite.Connection) -> bool:
+    """Create thread_titles table if not exists.
+
+    Args:
+        conn: An active aiosqlite connection.
+
+    Returns:
+        True if the table was created, False if it already existed.
+    """
+    cursor = await conn.execute("""
         CREATE TABLE IF NOT EXISTS thread_titles (
             thread_id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -66,7 +74,9 @@ async def _create_titles_table(conn: aiosqlite.Connection) -> None:
             FOREIGN KEY (thread_id) REFERENCES checkpoints(thread_id) ON DELETE CASCADE
         )
     """)
+    created = cursor.rowcount > 0
     await conn.commit()
+    return created
 
 
 async def save_thread_title(thread_id: str, title: str) -> bool:
@@ -94,6 +104,7 @@ async def save_thread_title(thread_id: str, title: str) -> bool:
     except Exception:
         return False
 
+
 async def get_thread_title(thread_id: str) -> str | None:
     """Get title for a thread.
 
@@ -115,37 +126,44 @@ async def get_thread_title(thread_id: str) -> str | None:
             row = await cursor.fetchone()
             return row[0] if row else None
 
+
 async def list_threads(
     agent_name: str | None = None,
     limit: int = 20,
 ) -> list[dict]:
-    """List threads from checkpoints table."""
+    """List threads from checkpoints table with titles."""
     db_path = str(get_db_path())
     async with aiosqlite.connect(db_path, timeout=30.0) as conn:
         # Return empty if table doesn't exist yet (fresh install)
         if not await _table_exists(conn, "checkpoints"):
-async def save_thread_title(thread_id: str, title: str) -> bool:    """Save or update thread title.    Args:        thread_id: Thread identifier        title: Generated title    Returns:        True if saved successfully    """    db_path = str(get_db_path())    try:        async with aiosqlite.connect(db_path, timeout=30.0) as conn:            await _create_titles_table(conn)            await conn.execute(                """INSERT INTO thread_titles (thread_id, title)                   VALUES (?, ?)                   ON CONFLICT(thread_id) DO UPDATE SET title=excluded.title""",                (thread_id, title),            )            await conn.commit()            return True    except Exception:        return Falseasync def get_thread_title(thread_id: str) -> str | None:    """Get title for a thread.    Args:        thread_id: Thread identifier    Returns:        Title or None if not found    """    db_path = str(get_db_path())    async with aiosqlite.connect(db_path, timeout=30.0) as conn:        if not await _table_exists(conn, "thread_titles"):            return None        async with conn.execute(            "SELECT title FROM thread_titles WHERE thread_id = ?",            (thread_id,),        ) as cursor:            row = await cursor.fetchone()            return row[0] if row else None
             return []
+
+        # Ensure titles table exists
+        await _create_titles_table(conn)
 
         if agent_name:
             query = """
-                SELECT thread_id,
-                       json_extract(metadata, '$.agent_name') as agent_name,
-                       MAX(json_extract(metadata, '$.updated_at')) as updated_at
-                FROM checkpoints
-                WHERE json_extract(metadata, '$.agent_name') = ?
-                GROUP BY thread_id
+                SELECT c.thread_id,
+                       json_extract(c.metadata, '$.agent_name') as agent_name,
+                       MAX(json_extract(c.metadata, '$.updated_at')) as updated_at,
+                       t.title
+                FROM checkpoints c
+                LEFT JOIN thread_titles t ON c.thread_id = t.thread_id
+                WHERE json_extract(c.metadata, '$.agent_name') = ?
+                GROUP BY c.thread_id
                 ORDER BY updated_at DESC
                 LIMIT ?
             """
             params: tuple = (agent_name, limit)
         else:
             query = """
-                SELECT thread_id,
-                       json_extract(metadata, '$.agent_name') as agent_name,
-                       MAX(json_extract(metadata, '$.updated_at')) as updated_at
-                FROM checkpoints
-                GROUP BY thread_id
+                SELECT c.thread_id,
+                       json_extract(c.metadata, '$.agent_name') as agent_name,
+                       MAX(json_extract(c.metadata, '$.updated_at')) as updated_at,
+                       t.title
+                FROM checkpoints c
+                LEFT JOIN thread_titles t ON c.thread_id = t.thread_id
+                GROUP BY c.thread_id
                 ORDER BY updated_at DESC
                 LIMIT ?
             """
@@ -153,7 +171,15 @@ async def save_thread_title(thread_id: str, title: str) -> bool:    """Save or u
 
         async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-            return [{"thread_id": r[0], "agent_name": r[1], "updated_at": r[2]} for r in rows]
+            return [
+                {
+                    "thread_id": r[0],
+                    "agent_name": r[1],
+                    "updated_at": r[2],
+                    "title": r[3],
+                }
+                for r in rows
+            ]
 
 
 async def get_most_recent(agent_name: str | None = None) -> str | None:
@@ -252,12 +278,15 @@ async def list_threads_command(
 
     table = Table(title=title, show_header=True, header_style=f"bold {COLORS['primary']}")
     table.add_column("Thread ID", style="bold")
+    table.add_column("Title")
     table.add_column("Agent")
     table.add_column("Last Used", style="dim")
 
     for t in threads:
+        display_title = t.get("title") or "-"
         table.add_row(
             t["thread_id"],
+            display_title,
             t["agent_name"] or "unknown",
             _format_timestamp(t.get("updated_at")),
         )
