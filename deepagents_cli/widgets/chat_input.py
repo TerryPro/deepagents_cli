@@ -286,6 +286,9 @@ class ChatInput(Vertical):
             super().__init__()
             self.mode = mode
 
+    class NeedsScrollToBottom(Message):
+        """Message sent when chat needs to scroll to bottom (e.g., for command completion)."""
+
     mode: reactive[str] = reactive("normal")
 
     def __init__(
@@ -344,6 +347,10 @@ class ChatInput(Vertical):
             self.mode = "bash"
         elif text.startswith("/"):
             self.mode = "command"
+            # When entering command mode, notify parent to scroll to bottom
+            # so the completion popup has room to display
+            if len(text) == 1:
+                self.post_message(self.NeedsScrollToBottom())
         else:
             self.mode = "normal"
 
