@@ -1,13 +1,12 @@
-"""
-线性回归示例
+"""线性回归示例
 使用 scikit-learn 实现简单的线性回归
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
 
 # 设置随机种子以确保可重复性
 np.random.seed(42)
@@ -38,7 +37,7 @@ model = LinearRegression()
 model.fit(X_train, y_train)
 
 # 4. 获取模型参数
-print(f"\n模型参数:")
+print("\n模型参数:")
 print(f"学习到的斜率: {model.coef_[0][0]:.4f}")
 print(f"学习到的截距: {model.intercept_[0]:.4f}")
 print(f"真实斜率: {true_slope}")
@@ -51,7 +50,7 @@ y_pred = model.predict(X_test)
 mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
 
-print(f"\n模型评估:")
+print("\n模型评估:")
 print(f"均方误差 (MSE): {mse:.4f}")
 print(f"R² 分数: {r2:.4f}")
 
@@ -60,23 +59,25 @@ plt.figure(figsize=(12, 5))
 
 # 子图1：训练数据和回归线
 plt.subplot(1, 2, 1)
-plt.scatter(X_train, y_train, color='blue', alpha=0.6, label='训练数据')
-plt.plot(X_train, model.predict(X_train), color='red', linewidth=2, label='回归线')
-plt.xlabel('特征 X')
-plt.ylabel('目标值 y')
-plt.title('线性回归 - 训练数据')
+plt.scatter(X_train, y_train, color="blue", alpha=0.6, label="训练数据")
+plt.plot(X_train, model.predict(X_train), color="red", linewidth=2, label="回归线")
+plt.xlabel("特征 X")
+plt.ylabel("目标值 y")
+plt.title("线性回归 - 训练数据")
 plt.legend()
 plt.grid(True, alpha=0.3)
 
 # 子图2：测试数据预测
 plt.subplot(1, 2, 2)
-plt.scatter(X_test, y_test, color='green', alpha=0.6, label='测试数据')
-plt.scatter(X_test, y_pred, color='orange', alpha=0.8, label='预测值', marker='x')
+plt.scatter(X_test, y_test, color="green", alpha=0.6, label="测试数据")
+plt.scatter(X_test, y_pred, color="orange", alpha=0.8, label="预测值", marker="x")
 for i in range(len(X_test)):
-    plt.plot([X_test[i], X_test[i]], [y_test[i], y_pred[i]], color='gray', alpha=0.3, linestyle='--')
-plt.xlabel('特征 X')
-plt.ylabel('目标值 y')
-plt.title('线性回归 - 测试数据预测')
+    plt.plot(
+        [X_test[i], X_test[i]], [y_test[i], y_pred[i]], color="gray", alpha=0.3, linestyle="--"
+    )
+plt.xlabel("特征 X")
+plt.ylabel("目标值 y")
+plt.title("线性回归 - 测试数据预测")
 plt.legend()
 plt.grid(True, alpha=0.3)
 
@@ -93,7 +94,7 @@ for i, (x_val, pred) in enumerate(zip(new_X, predictions)):
     print(f"X = {x_val[0]:.1f}: 预测值 = {pred[0]:.4f}, 真实值 = {true_y[0]:.4f}")
 
 # 9. 多特征线性回归示例（可选）
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("多特征线性回归示例")
 
 # 生成多特征数据
@@ -111,7 +112,7 @@ y_multi = X_multi @ coefficients.reshape(-1, 1) + intercept_multi + noise_multi
 model_multi = LinearRegression()
 model_multi.fit(X_multi, y_multi)
 
-print(f"\n多特征模型参数:")
+print("\n多特征模型参数:")
 print(f"学习到的系数: {model_multi.coef_[0]}")
 print(f"真实系数: {coefficients}")
 print(f"学习到的截距: {model_multi.intercept_[0]:.4f}")
@@ -122,6 +123,6 @@ y_multi_pred = model_multi.predict(X_multi)
 mse_multi = mean_squared_error(y_multi, y_multi_pred)
 r2_multi = r2_score(y_multi, y_multi_pred)
 
-print(f"\n多特征模型评估:")
+print("\n多特征模型评估:")
 print(f"均方误差 (MSE): {mse_multi:.4f}")
 print(f"R² 分数: {r2_multi:.4f}")

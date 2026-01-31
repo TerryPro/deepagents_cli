@@ -62,4 +62,4 @@ Title:"""
 
     def _clean_title(self, raw: str) -> str:
         """Clean generated title."""
-        return raw.strip().strip('"\'').strip()
+        return raw.strip().strip("\"'").strip()

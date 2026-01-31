@@ -18,9 +18,7 @@ from textual.events import Click, MouseUp, Resize
 from textual.widgets import Static
 
 from deepagents_cli.clipboard import copy_selection_to_clipboard
-from deepagents_cli.config import Settings
 from deepagents_cli.sessions import get_thread_title, save_thread_title
-from deepagents_cli.skills.commands import _list as list_skills
 from deepagents_cli.textual_adapter import TextualUIAdapter, execute_task_textual
 from deepagents_cli.title_generator import TitleGenerator
 from deepagents_cli.widgets.approval import ApprovalMenu
@@ -512,6 +510,12 @@ class DeepAgentsApp(App):
         if self._status_bar:
             self._status_bar.set_mode(event.mode)
 
+    def on_chat_input_needs_scroll_to_bottom(self, _event: ChatInput.NeedsScrollToBottom) -> None:
+        """Scroll chat to bottom when input needs more space (e.g., command completion popup)."""
+        chat = self.query_one("#chat", VerticalScroll)
+        if chat.max_scroll_y > 0:
+            chat.scroll_end(animate=False)
+
     async def on_approval_menu_decided(
         self,
         event: Any,  # noqa: ANN401, ARG002
@@ -561,14 +565,14 @@ class DeepAgentsApp(App):
             if result.returncode != 0:
                 await self._mount_message(ErrorMessage(f"Exit code: {result.returncode}"))
 
-            # Scroll to show the output (user-initiated command, so scroll is expected)
-            chat = self.query_one("#chat", VerticalScroll)
-            chat.scroll_end(animate=False)
-
         except subprocess.TimeoutExpired:
             await self._mount_message(ErrorMessage("Command timed out (60s limit)"))
         except OSError as e:
             await self._mount_message(ErrorMessage(str(e)))
+        finally:
+            # Scroll to show the output (user-initiated command, so scroll is expected)
+            chat = self.query_one("#chat", VerticalScroll)
+            chat.scroll_end(animate=False)
 
     async def _handle_command(self, command: str) -> None:
         """Handle a slash command.
@@ -580,10 +584,13 @@ class DeepAgentsApp(App):
 
         if cmd in ("/quit", "/exit", "/q"):
             self.exit()
+            return  # Exit the app, no need to scroll
         elif cmd == "/help":
             await self._mount_message(UserMessage(command))
             await self._mount_message(
-                SystemMessage("Commands: /quit, /clear, /remember, /tokens, /threads, /skills, /shell, /help")
+                SystemMessage(
+                    "Commands: /quit, /clear, /remember, /tokens, /threads, /skills, /shell, /help"
+                )
             )
 
         elif cmd == "/version":
@@ -627,9 +634,7 @@ class DeepAgentsApp(App):
                 await self._mount_message(SystemMessage(f"Current context: {formatted} tokens"))
             else:
                 await self._mount_message(SystemMessage("No token usage yet"))
-        elif cmd == "/skills":
-            await self._mount_message(UserMessage(command))
-            list_skills(agent="agent", project=False)
+
         elif cmd.startswith("/shell "):
             await self._mount_message(UserMessage(command))
             shell_cmd = command[7:].strip()  # Remove "/shell " prefix
@@ -672,6 +677,7 @@ class DeepAgentsApp(App):
             await self._mount_message(UserMessage(command))
 
             # List skills
+            from deepagents_cli.config import settings
             from deepagents_cli.skills.load import list_skills
 
             # Use global settings object
@@ -712,6 +718,11 @@ class DeepAgentsApp(App):
         else:
             await self._mount_message(UserMessage(command))
             await self._mount_message(SystemMessage(f"Unknown command: {cmd}"))
+
+        # Scroll to bottom after handling slash commands to ensure output is visible
+        chat = self.query_one("#chat", VerticalScroll)
+        if chat.max_scroll_y > 0:
+            chat.scroll_end(animate=False)
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle a user message to send to the agent.

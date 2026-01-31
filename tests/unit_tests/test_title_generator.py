@@ -1,7 +1,8 @@
 """Tests for title generator."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from deepagents_cli.title_generator import TitleGenerator
 
@@ -16,13 +17,13 @@ class TestTitleGenerator:
         generator = TitleGenerator(model=mock_model)
         assert generator._clean_title('"Hello World"') == "Hello World"
         assert generator._clean_title("'Hello World'") == "Hello World"
-        assert generator._clean_title('  Hello World  ') == "Hello World"
+        assert generator._clean_title("  Hello World  ") == "Hello World"
 
     def test_clean_title_empty(self):
         """Test cleaning empty/whitespace strings."""
         mock_model = MagicMock()
         generator = TitleGenerator(model=mock_model)
-        assert generator._clean_title('  ') == ""
+        assert generator._clean_title("  ") == ""
         assert generator._clean_title('"  "') == ""
 
 
