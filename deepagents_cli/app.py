@@ -18,7 +18,9 @@ from textual.events import Click, MouseUp, Resize
 from textual.widgets import Static
 
 from deepagents_cli.clipboard import copy_selection_to_clipboard
+from deepagents_cli.config import Settings
 from deepagents_cli.sessions import get_thread_title, save_thread_title
+from deepagents_cli.skills.commands import _list as list_skills
 from deepagents_cli.textual_adapter import TextualUIAdapter, execute_task_textual
 from deepagents_cli.title_generator import TitleGenerator
 from deepagents_cli.widgets.approval import ApprovalMenu
@@ -581,7 +583,7 @@ class DeepAgentsApp(App):
         elif cmd == "/help":
             await self._mount_message(UserMessage(command))
             await self._mount_message(
-                SystemMessage("Commands: /quit, /clear, /remember, /tokens, /threads, /help")
+                SystemMessage("Commands: /quit, /clear, /remember, /tokens, /threads, /skills, /shell, /help")
             )
 
         elif cmd == "/version":
@@ -625,6 +627,30 @@ class DeepAgentsApp(App):
                 await self._mount_message(SystemMessage(f"Current context: {formatted} tokens"))
             else:
                 await self._mount_message(SystemMessage("No token usage yet"))
+        elif cmd == "/skills":
+            await self._mount_message(UserMessage(command))
+            list_skills(agent="agent", project=False)
+        elif cmd.startswith("/shell "):
+            await self._mount_message(UserMessage(command))
+            shell_cmd = command[7:].strip()  # Remove "/shell " prefix
+            if shell_cmd:
+                try:
+                    result = subprocess.run(
+                        shell_cmd,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    output = result.stdout if result.returncode == 0 else result.stderr
+                    if output:
+                        await self._mount_message(SystemMessage(f"```\n{output}\n```"))
+                    else:
+                        await self._mount_message(SystemMessage("Command executed (no output)"))
+                except Exception as e:
+                    await self._mount_message(SystemMessage(f"Error: {e}"))
+            else:
+                await self._mount_message(SystemMessage("Usage: /shell <command>"))
         elif cmd == "/remember" or cmd.startswith("/remember "):
             # Extract any additional context after /remember
             additional_context = ""
