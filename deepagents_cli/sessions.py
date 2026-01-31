@@ -69,6 +69,52 @@ async def _create_titles_table(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
+async def save_thread_title(thread_id: str, title: str) -> bool:
+    """Save or update thread title.
+
+    Args:
+        thread_id: Thread identifier
+        title: Generated title
+
+    Returns:
+        True if saved successfully
+    """
+    db_path = str(get_db_path())
+    try:
+        async with aiosqlite.connect(db_path, timeout=30.0) as conn:
+            await _create_titles_table(conn)
+            await conn.execute(
+                """INSERT INTO thread_titles (thread_id, title)
+                   VALUES (?, ?)
+                   ON CONFLICT(thread_id) DO UPDATE SET title=excluded.title""",
+                (thread_id, title),
+            )
+            await conn.commit()
+            return True
+    except Exception:
+        return False
+
+async def get_thread_title(thread_id: str) -> str | None:
+    """Get title for a thread.
+
+    Args:
+        thread_id: Thread identifier
+
+    Returns:
+        Title or None if not found
+    """
+    db_path = str(get_db_path())
+    async with aiosqlite.connect(db_path, timeout=30.0) as conn:
+        if not await _table_exists(conn, "thread_titles"):
+            return None
+
+        async with conn.execute(
+            "SELECT title FROM thread_titles WHERE thread_id = ?",
+            (thread_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
 async def list_threads(
     agent_name: str | None = None,
     limit: int = 20,
@@ -78,6 +124,7 @@ async def list_threads(
     async with aiosqlite.connect(db_path, timeout=30.0) as conn:
         # Return empty if table doesn't exist yet (fresh install)
         if not await _table_exists(conn, "checkpoints"):
+async def save_thread_title(thread_id: str, title: str) -> bool:    """Save or update thread title.    Args:        thread_id: Thread identifier        title: Generated title    Returns:        True if saved successfully    """    db_path = str(get_db_path())    try:        async with aiosqlite.connect(db_path, timeout=30.0) as conn:            await _create_titles_table(conn)            await conn.execute(                """INSERT INTO thread_titles (thread_id, title)                   VALUES (?, ?)                   ON CONFLICT(thread_id) DO UPDATE SET title=excluded.title""",                (thread_id, title),            )            await conn.commit()            return True    except Exception:        return Falseasync def get_thread_title(thread_id: str) -> str | None:    """Get title for a thread.    Args:        thread_id: Thread identifier    Returns:        Title or None if not found    """    db_path = str(get_db_path())    async with aiosqlite.connect(db_path, timeout=30.0) as conn:        if not await _table_exists(conn, "thread_titles"):            return None        async with conn.execute(            "SELECT title FROM thread_titles WHERE thread_id = ?",            (thread_id,),        ) as cursor:            row = await cursor.fetchone()            return row[0] if row else None
             return []
 
         if agent_name:
