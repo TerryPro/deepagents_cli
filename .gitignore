@@ -157,3 +157,5 @@ cython_debug/
 # VS Code
 .vscode/
 .worktrees/
+.claude/settings.local.json
+.gitignore

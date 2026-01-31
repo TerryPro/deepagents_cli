@@ -668,6 +668,47 @@ class DeepAgentsApp(App):
             # Send as a user message to the agent
             await self._handle_user_message(final_prompt)
             return  # _handle_user_message already mounts the message
+        elif cmd == "/skills":
+            await self._mount_message(UserMessage(command))
+
+            # List skills
+            from deepagents_cli.skills.load import list_skills
+
+            # Use global settings object
+            agent_name = self._assistant_id or "agent"
+            user_skills_dir = settings.get_user_skills_dir(agent_name)
+            project_skills_dir = settings.get_project_skills_dir()
+
+            skills = list_skills(
+                user_skills_dir=user_skills_dir, project_skills_dir=project_skills_dir
+            )
+
+            if not skills:
+                msg = (
+                    "No skills found.\n\n"
+                    f"Skills will be created in `~/.deepagents/{agent_name}/skills/` when you add them.\n"
+                    "Create your first skill: `deepagents skills create my-skill`"
+                )
+                await self._mount_message(SystemMessage(msg))
+            else:
+                # Group skills
+                user_skills = [s for s in skills if s["source"] == "user"]
+                project_skills = [s for s in skills if s["source"] == "project"]
+
+                output = ["**Available Skills:**\n"]
+
+                if user_skills:
+                    output.append("**User Skills:**")
+                    for skill in user_skills:
+                        output.append(f"• **{skill['name']}**: {skill['description']}")
+                    output.append("")
+
+                if project_skills:
+                    output.append("**Project Skills:**")
+                    for skill in project_skills:
+                        output.append(f"• **{skill['name']}**: {skill['description']}")
+
+                await self._mount_message(SystemMessage("\n".join(output)))
         else:
             await self._mount_message(UserMessage(command))
             await self._mount_message(SystemMessage(f"Unknown command: {cmd}"))
