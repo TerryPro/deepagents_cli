@@ -56,6 +56,18 @@ async def _table_exists(conn: aiosqlite.Connection, table: str) -> bool:
     async with conn.execute(query, (table,)) as cursor:
         return await cursor.fetchone() is not None
 
+async def _create_titles_table(conn: aiosqlite.Connection) -> None:
+    """Create thread_titles table if not exists."""
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS thread_titles (
+            thread_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (thread_id) REFERENCES checkpoints(thread_id) ON DELETE CASCADE
+        )
+    """)
+    await conn.commit()
+
 
 async def list_threads(
     agent_name: str | None = None,
