@@ -559,6 +559,8 @@ class DeepAgentsApp(App):
                 msg = AssistantMessage(f"```\n{output}\n```")
                 await self._mount_message(msg)
                 await msg.write_initial_content()
+                # Wait for markdown to fully render before scrolling
+                await msg.stop_stream()
             else:
                 await self._mount_message(SystemMessage("Command completed (no output)"))
 
@@ -571,8 +573,12 @@ class DeepAgentsApp(App):
             await self._mount_message(ErrorMessage(str(e)))
         finally:
             # Scroll to show the output (user-initiated command, so scroll is expected)
-            chat = self.query_one("#chat", VerticalScroll)
-            chat.scroll_end(animate=False)
+            # Use set_timer to ensure content is fully rendered before scrolling
+            def scroll_to_bottom() -> None:
+                chat = self.query_one("#chat", VerticalScroll)
+                chat.scroll_end(animate=False)
+
+            self.set_timer(0.05, scroll_to_bottom)
 
     async def _handle_command(self, command: str) -> None:
         """Handle a slash command.
@@ -636,24 +642,40 @@ class DeepAgentsApp(App):
                 await self._mount_message(SystemMessage("No token usage yet"))
 
         elif cmd.startswith("/shell "):
-            await self._mount_message(UserMessage(command))
             shell_cmd = command[7:].strip()  # Remove "/shell " prefix
             if shell_cmd:
+                await self._mount_message(UserMessage(f"!{shell_cmd}"))
                 try:
-                    result = subprocess.run(
+                    result = await asyncio.to_thread(  # noqa: S604
+                        subprocess.run,
                         shell_cmd,
                         shell=True,
                         capture_output=True,
                         text=True,
+                        cwd=self._cwd,
                         timeout=30,
                     )
-                    output = result.stdout if result.returncode == 0 else result.stderr
+                    output = result.stdout.strip()
+                    if result.stderr:
+                        output += f"\n[stderr]\n{result.stderr.strip()}"
+
                     if output:
-                        await self._mount_message(SystemMessage(f"```\n{output}\n```"))
+                        # Display output as assistant message (uses markdown for code blocks)
+                        msg = AssistantMessage(f"```\n{output}\n```")
+                        await self._mount_message(msg)
+                        await msg.write_initial_content()
+                        # Wait for markdown to fully render before scrolling
+                        await msg.stop_stream()
                     else:
-                        await self._mount_message(SystemMessage("Command executed (no output)"))
-                except Exception as e:
-                    await self._mount_message(SystemMessage(f"Error: {e}"))
+                        await self._mount_message(SystemMessage("Command completed (no output)"))
+
+                    if result.returncode != 0:
+                        await self._mount_message(ErrorMessage(f"Exit code: {result.returncode}"))
+
+                except subprocess.TimeoutExpired:
+                    await self._mount_message(ErrorMessage("Command timed out (30s limit)"))
+                except OSError as e:
+                    await self._mount_message(ErrorMessage(str(e)))
             else:
                 await self._mount_message(SystemMessage("Usage: /shell <command>"))
         elif cmd == "/remember" or cmd.startswith("/remember "):
@@ -701,28 +723,70 @@ class DeepAgentsApp(App):
                 user_skills = [s for s in skills if s["source"] == "user"]
                 project_skills = [s for s in skills if s["source"] == "project"]
 
-                output = ["**Available Skills:**\n"]
+                # Build table output with box-drawing characters
+                # Width matches typical terminal width (input area ~70-80 chars)
+                width = 72
+                inner_width = width - 2
+
+                def make_line(text: str, align: str = "left") -> str:
+                    """Create a line with borders."""
+                    if align == "center":
+                        padding = (inner_width - len(text)) // 2
+                        content = " " * padding + text
+                        content = content.ljust(inner_width)
+                    elif align == "right":
+                        content = text.rjust(inner_width)
+                    else:
+                        content = text.ljust(inner_width)
+                    return f"│{content}│"
+
+                lines: list[str] = []
+                lines.append("┌" + "─" * inner_width + "┐")
+                lines.append(make_line("AVAILABLE SKILLS", align="center"))
+                lines.append("├" + "─" * inner_width + "┤")
 
                 if user_skills:
-                    output.append("**User Skills:**")
-                    for skill in user_skills:
-                        output.append(f"• **{skill['name']}**: {skill['description']}")
-                    output.append("")
+                    lines.append(make_line(f"User Skills ({len(user_skills)})", align="left"))
+                    lines.append(make_line(""))
+                    for i, skill in enumerate(user_skills, 1):
+                        name = skill["name"]
+                        desc = skill.get("description", "No description")
+                        # Truncate description to fit
+                        max_desc_len = inner_width - 8
+                        if len(desc) > max_desc_len:
+                            desc = desc[:max_desc_len - 3] + "..."
+                        lines.append(make_line(f"{i}. {name}"))
+                        lines.append(make_line(f"   {desc}"))
+                    lines.append(make_line(""))
 
                 if project_skills:
-                    output.append("**Project Skills:**")
-                    for skill in project_skills:
-                        output.append(f"• **{skill['name']}**: {skill['description']}")
+                    lines.append(make_line(f"Project Skills ({len(project_skills)})"))
+                    lines.append(make_line(""))
+                    for i, skill in enumerate(project_skills, 1):
+                        name = skill["name"]
+                        desc = skill.get("description", "No description")
+                        max_desc_len = inner_width - 8
+                        if len(desc) > max_desc_len:
+                            desc = desc[:max_desc_len - 3] + "..."
+                        lines.append(make_line(f"{i}. {name}"))
+                        lines.append(make_line(f"   {desc}"))
+                    lines.append(make_line(""))
 
-                await self._mount_message(SystemMessage("\n".join(output)))
+                lines.append("└" + "─" * inner_width + "┘")
+
+                await self._mount_message(SystemMessage("\n".join(lines)))
         else:
             await self._mount_message(UserMessage(command))
             await self._mount_message(SystemMessage(f"Unknown command: {cmd}"))
 
         # Scroll to bottom after handling slash commands to ensure output is visible
-        chat = self.query_one("#chat", VerticalScroll)
-        if chat.max_scroll_y > 0:
-            chat.scroll_end(animate=False)
+        # Use set_timer to ensure content is fully rendered before scrolling
+        def scroll_to_bottom() -> None:
+            chat = self.query_one("#chat", VerticalScroll)
+            if chat.max_scroll_y > 0:
+                chat.scroll_end(animate=False)
+
+        self.set_timer(0.05, scroll_to_bottom)
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle a user message to send to the agent.
