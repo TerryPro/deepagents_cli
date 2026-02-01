@@ -306,6 +306,16 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         self.post_message(SkillsCancelled())
         self.dismiss(None)
 
+    def on_key(self, event) -> None:
+        """Handle key events.
+
+        Explicitly handle escape key to ensure modal closes.
+        """
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.action_cancel()
+
     def on_click(self, event) -> None:
         """Handle click events on skill cards.
 
