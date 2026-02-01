@@ -536,19 +536,40 @@ class DeepAgentsApp(App):
             self._on_skill_selected,
         )
 
-    def _on_skill_selected(self, skill_name: str | None) -> None:
+    def _on_skill_selected(self, skill_data: dict[str, str] | None) -> None:
         """Handle skill selection from the skills modal.
 
+        Displays the selected skill info and fills the input with the command,
+        but doesn't auto-send - lets the user add their own input.
+
         Args:
-            skill_name: The name of the selected skill, or None if cancelled.
+            skill_data: Dict with 'name' and 'description' of the selected skill,
+                       or None if cancelled.
         """
-        if skill_name and self._chat_input:
-            chat_input = self.query_one(ChatInput)
-            # Set the command in input and immediately submit it
-            use_skill_cmd = f"/use-skill {skill_name}"
-            chat_input.value = use_skill_cmd
-            # Simulate pressing enter to submit the command
-            chat_input.post_message(ChatInput.Submitted(use_skill_cmd, "command"))
+        if skill_data and self._chat_input:
+            skill_name = skill_data.get("name", "")
+            skill_description = skill_data.get("description", "")
+
+            if skill_name:
+                # Show skill info in chat (only name and description)
+                # Use timer to schedule async message mounting
+                self.set_timer(0, lambda: self._mount_skill_info(skill_name, skill_description))
+
+                # Fill input with the skill command, let user add their own input
+                chat_input = self.query_one(ChatInput)
+                chat_input.value = f"/use-skill {skill_name} "
+                # Focus the input for the user to continue typing
+                if chat_input.input_widget:
+                    chat_input.input_widget.focus()
+
+    async def _mount_skill_info(self, name: str, description: str) -> None:
+        """Mount skill info message to chat.
+
+        Args:
+            name: Skill name.
+            description: Skill description.
+        """
+        await self._mount_message(SystemMessage(f"[bold]{name}[/bold]\n{description}"))
 
     async def on_approval_menu_decided(
         self,

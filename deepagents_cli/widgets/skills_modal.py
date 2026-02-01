@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from textual.app import ComposeResult
 
 
-class SkillsModal(ModalScreen[str | None]):
+class SkillsModal(ModalScreen[dict[str, str] | None]):
     """Modal screen for browsing and selecting skills.
 
     Displays skills in a grid layout with keyboard navigation (arrow keys)
@@ -284,16 +284,19 @@ class SkillsModal(ModalScreen[str | None]):
     def action_select(self) -> None:
         """Select the currently highlighted skill.
 
-        Posts a SkillsSelected message with the skill name and dismisses the modal.
+        Posts a SkillsSelected message with the skill name and dismisses the modal
+        with both name and description.
         """
         if not self._skill_cards or self._selected_index < 0:
             return
 
         selected_skill = self._skill_cards[self._selected_index]
         skill_name = selected_skill.get_skill_name()
+        skill_description = selected_skill.get_skill_description()
 
         self.post_message(SkillsSelected(skill_name))
-        self.dismiss(skill_name)
+        # Return a dict with name and description
+        self.dismiss({"name": skill_name, "description": skill_description})
 
     def action_cancel(self) -> None:
         """Cancel the modal and close without selection.

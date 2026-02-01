@@ -56,6 +56,14 @@ class SkillCard(Static):
         """
         return self._name
 
+    def get_skill_description(self) -> str:
+        """Return the skill description.
+
+        Returns:
+            The skill description string.
+        """
+        return self._description
+
     def _get_source_label(self) -> str:
         """Get the formatted source label.
 
