@@ -157,7 +157,7 @@ class SkillsModal(ModalScreen[str | None]):
         for each skill. Handles empty state by showing a message.
         """
         # Get user skills directory
-        user_skills_dir = settings.skills_dir(self._agent)
+        user_skills_dir = settings.get_user_skills_dir(self._agent)
 
         # Load skills from both sources
         skills = list_skills(
