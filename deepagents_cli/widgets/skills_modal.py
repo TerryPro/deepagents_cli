@@ -87,6 +87,11 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         color: $text;
     }
 
+    SkillsModal .skill-item-content {
+        width: 100%;
+        height: auto;
+    }
+
     SkillsModal .skill-name {
         text-style: bold;
         color: $text;
@@ -136,7 +141,7 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         super().__init__(**kwargs)
         self._agent = agent
         self._project_skills_dir = project_skills_dir
-        self._skills: list[dict] = []
+        self._skills: list = []
         self._list_view: ListView | None = None
 
     def compose(self) -> ComposeResult:
@@ -197,11 +202,13 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
                 source_label = "[User]" if source == "user" else "[Project]"
 
                 # Create a simple list item with skill info
-                item = ListItem(
+                from textual.containers import Vertical
+                item_content = Vertical(
                     Static(f"{name} {source_label}", classes="skill-name"),
                     Static(desc, classes="skill-desc"),
-                    id=f"skill-{name}",
+                    classes="skill-item-content",
                 )
+                item = ListItem(item_content, id=f"skill-{name}")
                 self._list_view.append(item)
 
     def action_select(self) -> None:
