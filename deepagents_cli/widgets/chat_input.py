@@ -21,6 +21,7 @@ from deepagents_cli.widgets.autocomplete import (
     SlashCommandController,
 )
 from deepagents_cli.widgets.history import HistoryManager
+from deepagents_cli.widgets.skills_messages import ShowSkillsModal
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
@@ -295,6 +296,7 @@ class ChatInput(Vertical):
         self,
         cwd: str | Path | None = None,
         history_file: Path | None = None,
+        agent: str = "agent",
         **kwargs: Any,
     ) -> None:
         """Initialize the chat input widget.
@@ -302,10 +304,12 @@ class ChatInput(Vertical):
         Args:
             cwd: Current working directory for file completion
             history_file: Path to history file (default: ~/.deepagents/history.jsonl)
+            agent: The agent identifier for skills modal
             **kwargs: Additional arguments for parent
         """
         super().__init__(**kwargs)
         self._cwd = Path(cwd) if cwd else Path.cwd()
+        self.agent = agent
         self._text_area: ChatTextArea | None = None
         self._popup: CompletionPopup | None = None
         self._completion_manager: MultiCompletionManager | None = None
@@ -374,6 +378,17 @@ class ChatInput(Vertical):
             return  # Submission disabled while agent is working
         value = event.value
         if value:
+            # Check for /skills command
+            if value.strip() == "/skills":
+                # Trigger skills modal instead of sending as message
+                self.post_message(ShowSkillsModal(agent=self.agent))
+                if self._text_area:
+                    self._text_area.clear_text()
+                if self._completion_manager:
+                    self._completion_manager.reset()
+                self.mode = "normal"
+                return
+
             if self._completion_manager:
                 self._completion_manager.reset()
 

@@ -11,6 +11,13 @@ from deepagents_cli.widgets.messages import (
     ToolCallMessage,
     UserMessage,
 )
+from deepagents_cli.widgets.skill_card import SkillCard
+from deepagents_cli.widgets.skills_messages import (
+    ShowSkillsModal,
+    SkillsCancelled,
+    SkillsSelected,
+)
+from deepagents_cli.widgets.skills_modal import SkillsModal
 from deepagents_cli.widgets.status import StatusBar
 from deepagents_cli.widgets.welcome import WelcomeBanner
 
@@ -19,6 +26,11 @@ __all__ = [
     "ChatInput",
     "DiffMessage",
     "ErrorMessage",
+    "ShowSkillsModal",
+    "SkillCard",
+    "SkillsCancelled",
+    "SkillsModal",
+    "SkillsSelected",
     "StatusBar",
     "SystemMessage",
     "ToolCallMessage",

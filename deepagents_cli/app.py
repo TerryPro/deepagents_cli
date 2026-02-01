@@ -31,6 +31,12 @@ from deepagents_cli.widgets.messages import (
     ToolCallMessage,
     UserMessage,
 )
+from deepagents_cli.widgets.skills_messages import (
+    ShowSkillsModal,
+    SkillsCancelled,
+    SkillsSelected,
+)
+from deepagents_cli.widgets.skills_modal import SkillsModal
 from deepagents_cli.widgets.status import StatusBar
 from deepagents_cli.widgets.welcome import WelcomeBanner
 
@@ -515,6 +521,32 @@ class DeepAgentsApp(App):
         chat = self.query_one("#chat", VerticalScroll)
         if chat.max_scroll_y > 0:
             chat.scroll_end(animate=False)
+
+    def on_show_skills_modal(self, event: ShowSkillsModal) -> None:
+        """Handle request to show skills modal.
+
+        Opens the skills modal screen with a callback to handle selection.
+        """
+        from deepagents_cli.config import Settings
+
+        settings = Settings.from_environment()
+        project_skills_dir = settings.get_project_skills_dir()
+        self.push_screen(
+            SkillsModal(agent=event.agent, project_skills_dir=project_skills_dir),
+            self._on_skill_selected,
+        )
+
+    def _on_skill_selected(self, skill_name: str | None) -> None:
+        """Handle skill selection from the skills modal.
+
+        Args:
+            skill_name: The name of the selected skill, or None if cancelled.
+        """
+        if skill_name and self._chat_input:
+            chat_input = self.query_one(ChatInput)
+            chat_input.value = f"/use-skill {skill_name}"
+            if chat_input.input_widget:
+                chat_input.input_widget.focus()
 
     async def on_approval_menu_decided(
         self,
