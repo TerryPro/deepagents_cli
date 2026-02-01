@@ -533,6 +533,15 @@ class ChatInput(Vertical):
         if self._text_area:
             self._text_area.set_app_focus(has_focus=active)
 
+    def move_cursor_to_end(self) -> None:
+        """Move cursor to the end of the text."""
+        if self._text_area:
+            text = self._text_area.text
+            lines = text.split("\n")
+            end_row = len(lines) - 1
+            end_col = len(lines[end_row])
+            self._text_area.cursor_location = (end_row, end_col)
+
     # =========================================================================
     # CompletionView protocol implementation
     # =========================================================================

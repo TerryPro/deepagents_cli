@@ -562,10 +562,7 @@ class DeepAgentsApp(App):
                 if chat_input._completion_manager:
                     chat_input._completion_manager.reset()
                 # Focus the input and move cursor to end for user to continue typing
-                if chat_input.input_widget:
-                    chat_input.input_widget.focus()
-                    # Move cursor to end of text
-                    chat_input.input_widget.action_end()
+                chat_input.move_cursor_to_end()
 
     async def _mount_skill_info(self, name: str, description: str) -> None:
         """Mount skill info message to chat.
