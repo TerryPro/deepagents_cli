@@ -11,6 +11,7 @@ from deepagents_cli.widgets.messages import (
     ToolCallMessage,
     UserMessage,
 )
+from deepagents_cli.widgets.skill_card import SkillCard
 from deepagents_cli.widgets.skills_messages import (
     ShowSkillsModal,
     SkillsCancelled,
@@ -26,6 +27,7 @@ __all__ = [
     "DiffMessage",
     "ErrorMessage",
     "ShowSkillsModal",
+    "SkillCard",
     "SkillsCancelled",
     "SkillsModal",
     "SkillsSelected",
