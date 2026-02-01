@@ -117,7 +117,7 @@ class TestSkillsModalWithMockSkills:
         modal = SkillsModal(agent="test-agent", project_skills_dir=tmp_path)
 
         # Mock grid and empty message
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
         modal._skill_cards = []
 
@@ -141,7 +141,7 @@ class TestSkillsModalWithMockSkills:
         ]
 
         modal = SkillsModal(agent="test-agent")
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
         modal._skill_cards = []
 
@@ -152,15 +152,15 @@ class TestSkillsModalWithMockSkills:
 
         # Test navigate down
         modal.action_navigate_down()
-        assert modal._selected_index == 2  # 2-column grid, down moves by 2
+        assert modal._selected_index == 1
 
         # Test navigate right
         modal.action_navigate_right()
-        assert modal._selected_index == 3
+        assert modal._selected_index == 2
 
         # Test navigate left
         modal.action_navigate_left()
-        assert modal._selected_index == 2
+        assert modal._selected_index == 1
 
         # Test navigate up
         modal.action_navigate_up()
@@ -181,7 +181,7 @@ class TestSkillsModalEmptyState:
         modal = SkillsModal(agent="test-agent", project_skills_dir=tmp_path)
 
         # Mock grid and empty message
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
         modal._empty_message.display = True
 
@@ -192,7 +192,7 @@ class TestSkillsModalEmptyState:
         mock_list_skills.assert_called_once()
 
         # Verify empty state was shown
-        modal._grid.remove_children.assert_called_once()
+        modal._list.remove_children.assert_called_once()
 
     @patch("deepagents_cli.widgets.skills_modal.list_skills")
     async def test_modal_handles_empty_selection(self, mock_list_skills):
@@ -200,7 +200,7 @@ class TestSkillsModalEmptyState:
         mock_list_skills.return_value = []
 
         modal = SkillsModal(agent="test-agent")
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
         modal._skill_cards = []
         modal._selected_index = -1
@@ -248,7 +248,7 @@ class TestSkillsModalCancellation:
         ]
 
         modal = SkillsModal(agent="test-agent")
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
         modal._skill_cards = []
 
@@ -272,7 +272,7 @@ class TestSkillsModalCancellation:
         assert posted_messages[0].skill_name == "test-skill"
 
         # Verify dismiss was called with skill name
-        modal.dismiss.assert_called_once_with("test-skill")
+        modal.dismiss.assert_called_once_with({"name": "test-skill", "description": "Test skill"})
 
 
 @pytest.mark.asyncio
@@ -304,7 +304,7 @@ the modal can load them.
         modal = SkillsModal(agent="test-agent", project_skills_dir=skills_dir)
 
         # Mock the grid to avoid actual UI mounting
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
         modal._skill_cards = []
 

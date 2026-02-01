@@ -1,7 +1,7 @@
 """SkillsModal screen for browsing and selecting skills.
 
 This module provides a modal screen for displaying all available skills
-in a grid layout with keyboard and mouse navigation.
+in a list layout with keyboard and mouse navigation.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual.binding import Binding
-from textual.containers import Grid, Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, Static
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 class SkillsModal(ModalScreen[dict[str, str] | None]):
     """Modal screen for browsing and selecting skills.
 
-    Displays skills in a grid layout with keyboard navigation (arrow keys)
+    Displays skills in a list layout with keyboard navigation (arrow keys)
     and mouse click support. Returns the selected skill name or None if cancelled.
 
     Attributes:
@@ -78,10 +78,7 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         margin-top: 1;
     }
 
-    SkillsModal .grid {
-        grid-size: 2;
-        grid-columns: 1fr 1fr;
-        grid-rows: auto;
+    SkillsModal .list {
         height: 1fr;
         overflow-y: auto;
     }
@@ -101,19 +98,8 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         text-style: italic;
     }
 
-    SkillsModal SkillCard {
-        border: solid $primary-darken-2;
-        background: $surface;
-        padding: 1;
-    }
-
     SkillsModal SkillCard.selected {
-        border: solid $primary;
         background: $primary-darken-1;
-    }
-
-    SkillsModal SkillCard:focus {
-        border: double $primary;
     }
     """
 
@@ -135,7 +121,7 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         self._project_skills_dir = project_skills_dir
         self._skill_cards: list[SkillCard] = []
         self._selected_index = -1
-        self._grid: Grid | None = None
+        self._list: VerticalScroll | None = None
         self._empty_message: Static | None = None
 
     def compose(self) -> ComposeResult:
@@ -150,9 +136,8 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
                 yield Label("Available Skills", classes="title")
                 yield Label(f"Agent: {self._agent}", classes="subtitle")
 
-            # Grid container for skills
-            self._grid = Grid(classes="grid")
-            yield self._grid
+            self._list = VerticalScroll(classes="list")
+            yield self._list
 
             # Empty state message (hidden by default)
             self._empty_message = Static("No skills available", classes="empty-state")
@@ -160,10 +145,7 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
             yield self._empty_message
 
             # Footer with navigation hints
-            yield Static(
-                "↑↓←→ Navigate | Enter Select | Esc Cancel | Click to select",
-                classes="footer",
-            )
+            yield Static("↑↓ Navigate | Enter Select | Esc Cancel | Click to select", classes="footer")
 
     def on_mount(self) -> None:
         """Load skills when the modal is mounted."""
@@ -188,30 +170,36 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
 
         if not skills:
             # Show empty state
-            if self._grid:
-                self._grid.display = False
+            if self._list:
+                self._list.remove_children()
+                self._list.display = False
             if self._empty_message:
+                self._empty_message.update("No skills available")
                 self._empty_message.display = True
             return
 
         # Create skill cards
-        if self._grid:
-            self._grid.remove_children()
+        if self._list:
+            self._list.remove_children()
             self._skill_cards = []
+            self._list.display = True
+        if self._empty_message:
+            self._empty_message.display = False
 
-            for skill in skills:
-                card = SkillCard(
-                    name=skill["name"],
-                    description=skill.get("description", ""),
-                    source=skill.get("source", "user"),
-                )
-                self._skill_cards.append(card)
-                self._grid.mount(card)
+        for skill in skills:
+            card = SkillCard(
+                name=skill["name"],
+                description=skill.get("description", ""),
+                source=skill.get("source", "user"),
+            )
+            self._skill_cards.append(card)
+            if self._list:
+                self._list.mount(card)
 
-            # Select first skill if available
-            if self._skill_cards:
-                self._selected_index = 0
-                self._update_selection()
+        # Select first skill if available
+        if self._skill_cards:
+            self._selected_index = 0
+            self._update_selection()
 
     def _update_selection(self) -> None:
         """Update the visual selection state of skill cards.
@@ -232,60 +220,42 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
             self._skill_cards[self._selected_index].focus()
 
     def action_navigate_up(self) -> None:
-        """Navigate up in the skill grid (move to previous row)."""
+        """Navigate up in the skill list."""
         if not self._skill_cards or self._selected_index < 0:
             return
 
-        # In a 2-column grid, move up 2 positions
-        new_index = self._selected_index - 2
+        new_index = self._selected_index - 1
         if new_index < 0:
-            # Wrap around to bottom
             new_index = len(self._skill_cards) - 1
 
         self._selected_index = new_index
         self._update_selection()
 
     def action_navigate_down(self) -> None:
-        """Navigate down in the skill grid (move to next row)."""
+        """Navigate down in the skill list."""
         if not self._skill_cards:
             return
 
-        # In a 2-column grid, move down 2 positions
-        new_index = self._selected_index + 2
+        new_index = self._selected_index + 1
         if new_index >= len(self._skill_cards):
-            # Wrap around to top
             new_index = 0
 
         self._selected_index = new_index
         self._update_selection()
 
     def action_navigate_left(self) -> None:
-        """Navigate left in the skill grid."""
+        """Navigate left in the skill list."""
         if not self._skill_cards or self._selected_index < 0:
             return
 
-        # Move left 1 position
-        new_index = self._selected_index - 1
-        if new_index < 0:
-            # Wrap around to end
-            new_index = len(self._skill_cards) - 1
-
-        self._selected_index = new_index
-        self._update_selection()
+        self.action_navigate_up()
 
     def action_navigate_right(self) -> None:
-        """Navigate right in the skill grid."""
+        """Navigate right in the skill list."""
         if not self._skill_cards:
             return
 
-        # Move right 1 position
-        new_index = self._selected_index + 1
-        if new_index >= len(self._skill_cards):
-            # Wrap around to start
-            new_index = 0
-
-        self._selected_index = new_index
-        self._update_selection()
+        self.action_navigate_down()
 
     def action_select(self) -> None:
         """Select the currently highlighted skill.

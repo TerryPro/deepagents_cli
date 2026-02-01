@@ -1065,6 +1065,10 @@ class DeepAgentsApp(App):
 
         This is the primary way to stop a running agent.
         """
+        if isinstance(self.screen, SkillsModal):
+            self.screen.action_cancel()
+            return
+
         # If agent is running, interrupt it
         if self._agent_running and self._agent_worker:
             self._agent_worker.cancel()

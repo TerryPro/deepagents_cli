@@ -9,7 +9,7 @@ from deepagents_cli.config import COLORS
 
 
 class SkillCard(Static):
-    """Widget displaying a single skill with name, description, and source.
+    """Widget displaying a single skill entry with name, description, and source.
 
     Attributes:
         DEFAULT_CSS: Textual CSS styling for border, hover, and focus states.
@@ -18,19 +18,17 @@ class SkillCard(Static):
     DEFAULT_CSS = """
     SkillCard {
         height: auto;
-        padding: 1;
-        border: solid $primary;
-        margin: 1;
+        padding: 0 1;
+        margin: 0;
+        background: $surface;
     }
 
     SkillCard:hover {
-        border: solid $accent;
         background: $surface-darken-1;
     }
 
     SkillCard:focus {
-        border: double $accent;
-        background: $surface-darken-1;
+        background: $surface-darken-2;
     }
     """
 
@@ -76,7 +74,7 @@ class SkillCard(Static):
             return "[Project]"
         return f"[{self._source}]"
 
-    def _truncate_description(self, text: str, max_length: int = 40) -> str:
+    def _truncate_description(self, text: str, max_length: int = 80) -> str:
         """Truncate description to max length with ellipsis.
 
         Args:
@@ -91,12 +89,11 @@ class SkillCard(Static):
         return text[: max_length - 3] + "..."
 
     def render(self) -> Text:
-        """Render the skill card as Rich text.
+        """Render the skill entry as Rich text.
 
         Returns:
             Rich Text object with formatted skill info.
         """
-        # Build the skill card text
         card = Text()
 
         # Skill name (bold, primary color)
@@ -112,10 +109,9 @@ class SkillCard(Static):
         else:
             card.append(source_label, style="dim")
 
-        card.append("\n")
-
-        # Description (dim color, truncated)
         truncated_desc = self._truncate_description(self._description)
-        card.append(truncated_desc, style=COLORS["dim"])
+        if truncated_desc:
+            card.append(" - ")
+            card.append(truncated_desc, style=COLORS["dim"])
 
         return card

@@ -112,7 +112,7 @@ class TestSkillsModalIntegration:
         modal = SkillsModal(agent="agent")
         # Manually set up the widgets dict to simulate compose
         modal._skill_cards = []
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
 
         # Call _load_skills
@@ -128,7 +128,7 @@ class TestSkillsModalIntegration:
 
         modal = SkillsModal(agent="agent")
         modal._skill_cards = []
-        modal._grid = MagicMock()
+        modal._list = MagicMock()
         modal._empty_message = MagicMock()
 
         modal._load_skills()
