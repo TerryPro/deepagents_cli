@@ -558,9 +558,14 @@ class DeepAgentsApp(App):
                 # Fill input with the skill command, let user add their own input
                 chat_input = self.query_one(ChatInput)
                 chat_input.value = f"/use-skill {skill_name} "
-                # Focus the input for the user to continue typing
+                # Reset completion manager to hide command list
+                if chat_input._completion_manager:
+                    chat_input._completion_manager.reset()
+                # Focus the input and move cursor to end for user to continue typing
                 if chat_input.input_widget:
                     chat_input.input_widget.focus()
+                    # Move cursor to end of text
+                    chat_input.input_widget.action_end()
 
     async def _mount_skill_info(self, name: str, description: str) -> None:
         """Mount skill info message to chat.
