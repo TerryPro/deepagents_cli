@@ -544,9 +544,11 @@ class DeepAgentsApp(App):
         """
         if skill_name and self._chat_input:
             chat_input = self.query_one(ChatInput)
-            chat_input.value = f"/use-skill {skill_name}"
-            if chat_input.input_widget:
-                chat_input.input_widget.focus()
+            # Set the command in input and immediately submit it
+            use_skill_cmd = f"/use-skill {skill_name}"
+            chat_input.value = use_skill_cmd
+            # Simulate pressing enter to submit the command
+            chat_input.post_message(ChatInput.Submitted(use_skill_cmd, "command"))
 
     async def on_approval_menu_decided(
         self,
