@@ -432,6 +432,15 @@ class ChatInput(Vertical):
                 event.stop()
                 value = self._text_area.text.strip()
                 if value:
+                    # Check for /skills command
+                    if value.strip() == "/skills":
+                        # Trigger skills modal instead of sending as message
+                        self.post_message(ShowSkillsModal(agent=self.agent))
+                        self._text_area.clear_text()
+                        if self._completion_manager:
+                            self._completion_manager.reset()
+                        self.mode = "normal"
+                        return
                     self._completion_manager.reset()
                     self._history.add(value)
                     self.post_message(self.Submitted(value, self.mode))
