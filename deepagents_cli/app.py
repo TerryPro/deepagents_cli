@@ -728,85 +728,9 @@ class DeepAgentsApp(App):
             await self._handle_user_message(final_prompt)
             return  # _handle_user_message already mounts the message
         elif cmd == "/skills":
-            await self._mount_message(UserMessage(command))
-
-            # List skills
-            from deepagents_cli.config import settings
-            from deepagents_cli.skills.load import list_skills
-
-            # Use global settings object
-            agent_name = self._assistant_id or "agent"
-            user_skills_dir = settings.get_user_skills_dir(agent_name)
-            project_skills_dir = settings.get_project_skills_dir()
-
-            skills = list_skills(
-                user_skills_dir=user_skills_dir, project_skills_dir=project_skills_dir
-            )
-
-            if not skills:
-                msg = (
-                    "No skills found.\n\n"
-                    f"Skills will be created in `~/.deepagents/{agent_name}/skills/` when you add them.\n"
-                    "Create your first skill: `deepagents skills create my-skill`"
-                )
-                await self._mount_message(SystemMessage(msg))
-            else:
-                # Group skills
-                user_skills = [s for s in skills if s["source"] == "user"]
-                project_skills = [s for s in skills if s["source"] == "project"]
-
-                # Build table output with box-drawing characters
-                # Width matches typical terminal width (input area ~70-80 chars)
-                width = 72
-                inner_width = width - 2
-
-                def make_line(text: str, align: str = "left") -> str:
-                    """Create a line with borders."""
-                    if align == "center":
-                        padding = (inner_width - len(text)) // 2
-                        content = " " * padding + text
-                        content = content.ljust(inner_width)
-                    elif align == "right":
-                        content = text.rjust(inner_width)
-                    else:
-                        content = text.ljust(inner_width)
-                    return f"│{content}│"
-
-                lines: list[str] = []
-                lines.append("┌" + "─" * inner_width + "┐")
-                lines.append(make_line("AVAILABLE SKILLS", align="center"))
-                lines.append("├" + "─" * inner_width + "┤")
-
-                if user_skills:
-                    lines.append(make_line(f"User Skills ({len(user_skills)})", align="left"))
-                    lines.append(make_line(""))
-                    for i, skill in enumerate(user_skills, 1):
-                        name = skill["name"]
-                        desc = skill.get("description", "No description")
-                        # Truncate description to fit
-                        max_desc_len = inner_width - 8
-                        if len(desc) > max_desc_len:
-                            desc = desc[:max_desc_len - 3] + "..."
-                        lines.append(make_line(f"{i}. {name}"))
-                        lines.append(make_line(f"   {desc}"))
-                    lines.append(make_line(""))
-
-                if project_skills:
-                    lines.append(make_line(f"Project Skills ({len(project_skills)})"))
-                    lines.append(make_line(""))
-                    for i, skill in enumerate(project_skills, 1):
-                        name = skill["name"]
-                        desc = skill.get("description", "No description")
-                        max_desc_len = inner_width - 8
-                        if len(desc) > max_desc_len:
-                            desc = desc[:max_desc_len - 3] + "..."
-                        lines.append(make_line(f"{i}. {name}"))
-                        lines.append(make_line(f"   {desc}"))
-                    lines.append(make_line(""))
-
-                lines.append("└" + "─" * inner_width + "┘")
-
-                await self._mount_message(SystemMessage("\n".join(lines)))
+            # The /skills command is handled by ChatInput to show modal popup
+            # If we reach here, it means the modal wasn't shown (should not happen)
+            await self._mount_message(SystemMessage("Use /skills in the chat input to browse skills interactively."))
         else:
             await self._mount_message(UserMessage(command))
             await self._mount_message(SystemMessage(f"Unknown command: {cmd}"))
