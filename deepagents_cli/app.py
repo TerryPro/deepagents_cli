@@ -733,6 +733,38 @@ class DeepAgentsApp(App):
             # The /skills command is handled by ChatInput to show modal popup
             # If we reach here, it means the modal wasn't shown (should not happen)
             await self._mount_message(SystemMessage("Use /skills in the chat input to browse skills interactively."))
+        elif cmd.startswith("/use-skill "):
+            # Parse skill name and optional user input
+            parts = cmd[len("/use-skill "):].strip().split(" ", 1)
+            skill_name = parts[0]
+            user_input = parts[1] if len(parts) > 1 else ""
+
+            if not skill_name:
+                await self._mount_message(SystemMessage("Usage: /use-skill <skill-name> [your input]"))
+            else:
+                # Load skill content
+                from deepagents_cli.skills.load import load_skill_content
+                from deepagents_cli.config import Settings
+
+                settings = Settings.from_environment()
+                agent_name = self._assistant_id or "agent"
+                user_skills_dir = settings.get_user_skills_dir(agent_name)
+                project_skills_dir = settings.get_project_skills_dir()
+
+                skill_content = load_skill_content(skill_name, user_skills_dir, project_skills_dir)
+
+                if skill_content is None:
+                    await self._mount_message(SystemMessage(f"Skill '{skill_name}' not found."))
+                else:
+                    # Show skill usage message
+                    await self._mount_message(UserMessage(command))
+                    # Combine skill content with user input and send to agent
+                    if user_input:
+                        full_prompt = f"{skill_content}\n\nUser input: {user_input}"
+                    else:
+                        full_prompt = skill_content
+                    await self._handle_user_message(full_prompt)
+                    return
         else:
             await self._mount_message(UserMessage(command))
             await self._mount_message(SystemMessage(f"Unknown command: {cmd}"))

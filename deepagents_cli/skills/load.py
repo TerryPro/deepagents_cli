@@ -22,7 +22,36 @@ class ExtendedSkillMetadata(SkillMetadata):
 
 
 # Re-export for CLI commands
-__all__ = ["SkillMetadata", "list_skills"]
+__all__ = ["SkillMetadata", "list_skills", "load_skill_content"]
+
+
+def load_skill_content(skill_name: str, user_skills_dir: Path | None = None, project_skills_dir: Path | None = None) -> str | None:
+    """Load the full content of a skill's SKILL.md file.
+
+    Searches in both user and project skill directories.
+    Project skills take precedence over user skills.
+
+    Args:
+        skill_name: The name of the skill to load.
+        user_skills_dir: Path to user skills directory.
+        project_skills_dir: Path to project skills directory.
+
+    Returns:
+        The content of the SKILL.md file, or None if not found.
+    """
+    # Check project skills first (higher priority)
+    if project_skills_dir and project_skills_dir.exists():
+        skill_path = project_skills_dir / skill_name / "SKILL.md"
+        if skill_path.exists():
+            return skill_path.read_text(encoding="utf-8")
+
+    # Then check user skills
+    if user_skills_dir and user_skills_dir.exists():
+        skill_path = user_skills_dir / skill_name / "SKILL.md"
+        if skill_path.exists():
+            return skill_path.read_text(encoding="utf-8")
+
+    return None
 
 
 def list_skills(
