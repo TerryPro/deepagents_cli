@@ -48,6 +48,10 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         align: center middle;
     }
 
+    SkillsModal:focus {
+        border: solid $primary;
+    }
+
     SkillsModal > Vertical {
         width: 80%;
         height: 70%;
@@ -163,6 +167,8 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
 
     def on_mount(self) -> None:
         """Load skills when the modal is mounted."""
+        # Ensure modal has focus to receive keyboard events
+        self.focus()
         self._load_skills()
 
     def _load_skills(self) -> None:
