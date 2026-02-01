@@ -96,6 +96,21 @@ class SkillsModal(ModalScreen[str | None]):
         color: $text-muted;
         text-style: italic;
     }
+
+    SkillsModal SkillCard {
+        border: solid $primary-darken-2;
+        background: $surface;
+        padding: 1;
+    }
+
+    SkillsModal SkillCard.selected {
+        border: solid $primary;
+        background: $primary-darken-1;
+    }
+
+    SkillsModal SkillCard:focus {
+        border: double $primary;
+    }
     """
 
     def __init__(
@@ -295,8 +310,9 @@ class SkillsModal(ModalScreen[str | None]):
             event: The click event from Textual.
         """
         # Check if a skill card was clicked
+        clicked_widget = event.widget
         for i, card in enumerate(self._skill_cards):
-            if card.mouse_over:
+            if card == clicked_widget:
                 self._selected_index = i
                 self._update_selection()
                 self.action_select()
