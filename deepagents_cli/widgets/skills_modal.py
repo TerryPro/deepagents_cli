@@ -1,7 +1,7 @@
 """SkillsModal screen for browsing and selecting skills.
 
 This module provides a modal screen for displaying all available skills
-in a grid layout with keyboard and mouse navigation.
+in a simple list view with keyboard and mouse navigation.
 """
 
 from __future__ import annotations
@@ -10,13 +10,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual.binding import Binding
-from textual.containers import Grid, Vertical
+from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Label, Static
+from textual.widgets import Label, ListItem, ListView, Static
 
-from deepagents_cli.config import COLORS, settings
+from deepagents_cli.config import settings
 from deepagents_cli.skills.load import list_skills
-from deepagents_cli.widgets.skill_card import SkillCard
 from deepagents_cli.widgets.skills_messages import SkillsCancelled, SkillsSelected
 
 if TYPE_CHECKING:
@@ -26,19 +25,11 @@ if TYPE_CHECKING:
 class SkillsModal(ModalScreen[dict[str, str] | None]):
     """Modal screen for browsing and selecting skills.
 
-    Displays skills in a grid layout with keyboard navigation (arrow keys)
-    and mouse click support. Returns the selected skill name or None if cancelled.
-
-    Attributes:
-        BINDINGS: Key bindings for navigation and selection.
-        DEFAULT_CSS: Textual CSS styling for the modal.
+    Displays skills in a simple list view with keyboard navigation.
+    Returns the selected skill name and description, or None if cancelled.
     """
 
     BINDINGS = [
-        Binding("up", "navigate_up", "Navigate up", show=False),
-        Binding("down", "navigate_down", "Navigate down", show=False),
-        Binding("left", "navigate_left", "Navigate left", show=False),
-        Binding("right", "navigate_right", "Navigate right", show=False),
         Binding("enter", "select", "Select skill", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
     ]
@@ -48,42 +39,68 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         align: center middle;
     }
 
-    SkillsModal:focus {
-        border: solid $primary;
-    }
-
     SkillsModal > Vertical {
         width: 80%;
         height: 70%;
+        max-width: 100;
+        max-height: 30;
         border: solid $primary;
         background: $surface;
-        padding: 1;
+        padding: 1 2;
     }
 
     SkillsModal .header {
         height: auto;
         padding: 1 0;
         margin-bottom: 1;
+        text-align: center;
     }
 
     SkillsModal .title {
-        text-align: center;
         text-style: bold;
         color: $primary;
     }
 
     SkillsModal .subtitle {
-        text-align: center;
         color: $text-muted;
         margin-top: 1;
     }
 
-    SkillsModal .grid {
-        grid-size: 2;
-        grid-columns: 1fr 1fr;
-        grid-rows: auto;
+    SkillsModal ListView {
+        width: 100%;
         height: 1fr;
-        overflow-y: auto;
+        border: solid $primary-darken-2;
+        background: $surface-darken-1;
+    }
+
+    SkillsModal ListItem {
+        padding: 1;
+        height: auto;
+    }
+
+    SkillsModal ListItem:hover {
+        background: $primary-darken-2;
+    }
+
+    SkillsModal ListItem.--highlight {
+        background: $primary;
+        color: $text;
+    }
+
+    SkillsModal .skill-name {
+        text-style: bold;
+        color: $text;
+    }
+
+    SkillsModal .skill-desc {
+        color: $text-muted;
+        text-style: dim;
+        margin-top: 1;
+    }
+
+    SkillsModal .skill-source {
+        color: $text-muted;
+        text-style: italic;
     }
 
     SkillsModal .footer {
@@ -92,6 +109,7 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         margin-top: 1;
         text-align: center;
         color: $text-muted;
+        text-style: dim;
     }
 
     SkillsModal .empty-state {
@@ -99,21 +117,6 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         content-align: center middle;
         color: $text-muted;
         text-style: italic;
-    }
-
-    SkillsModal SkillCard {
-        border: solid $primary-darken-2;
-        background: $surface;
-        padding: 1;
-    }
-
-    SkillsModal SkillCard.selected {
-        border: solid $primary;
-        background: $primary-darken-1;
-    }
-
-    SkillsModal SkillCard:focus {
-        border: double $primary;
     }
     """
 
@@ -133,206 +136,95 @@ class SkillsModal(ModalScreen[dict[str, str] | None]):
         super().__init__(**kwargs)
         self._agent = agent
         self._project_skills_dir = project_skills_dir
-        self._skill_cards: list[SkillCard] = []
-        self._selected_index = -1
-        self._grid: Grid | None = None
-        self._empty_message: Static | None = None
+        self._skills: list[dict] = []
+        self._list_view: ListView | None = None
 
     def compose(self) -> ComposeResult:
-        """Compose the modal layout.
-
-        Yields:
-            UI components for the modal.
-        """
+        """Compose the modal layout."""
         with Vertical():
             # Header
             with Static(classes="header"):
                 yield Label("Available Skills", classes="title")
                 yield Label(f"Agent: {self._agent}", classes="subtitle")
 
-            # Grid container for skills
-            self._grid = Grid(classes="grid")
-            yield self._grid
+            # List view for skills
+            self._list_view = ListView(classes="skills-list")
+            yield self._list_view
 
             # Empty state message (hidden by default)
-            self._empty_message = Static("No skills available", classes="empty-state")
-            self._empty_message.display = False
-            yield self._empty_message
+            empty_msg = Static("No skills available", classes="empty-state")
+            empty_msg.display = False
+            yield empty_msg
 
             # Footer with navigation hints
             yield Static(
-                "↑↓←→ Navigate | Enter Select | Esc Cancel | Click to select",
+                "↑↓ Navigate | Enter Select | Esc Cancel",
                 classes="footer",
             )
 
     def on_mount(self) -> None:
         """Load skills when the modal is mounted."""
-        # Ensure modal has focus to receive keyboard events
-        self.focus()
         self._load_skills()
+        if self._list_view:
+            self._list_view.focus()
 
     def _load_skills(self) -> None:
-        """Load skills from user and project directories.
-
-        Fetches skills using list_skills() and creates SkillCard widgets
-        for each skill. Handles empty state by showing a message.
-        """
+        """Load skills from user and project directories."""
         # Get user skills directory
         user_skills_dir = settings.get_user_skills_dir(self._agent)
 
         # Load skills from both sources
-        skills = list_skills(
+        self._skills = list_skills(
             user_skills_dir=user_skills_dir,
             project_skills_dir=self._project_skills_dir,
         )
 
-        if not skills:
+        if not self._skills:
             # Show empty state
-            if self._grid:
-                self._grid.display = False
-            if self._empty_message:
-                self._empty_message.display = True
+            if self._list_view:
+                self._list_view.display = False
+            empty_msg = self.query_one(".empty-state", Static)
+            if empty_msg:
+                empty_msg.display = True
             return
 
-        # Create skill cards
-        if self._grid:
-            self._grid.remove_children()
-            self._skill_cards = []
+        # Create list items for each skill
+        if self._list_view:
+            for skill in self._skills:
+                name = skill.get("name", "Unknown")
+                desc = skill.get("description", "No description")
+                source = skill.get("source", "user")
+                source_label = "[User]" if source == "user" else "[Project]"
 
-            for skill in skills:
-                card = SkillCard(
-                    name=skill["name"],
-                    description=skill.get("description", ""),
-                    source=skill.get("source", "user"),
+                # Create a simple list item with skill info
+                item = ListItem(
+                    Static(f"{name} {source_label}", classes="skill-name"),
+                    Static(desc, classes="skill-desc"),
+                    id=f"skill-{name}",
                 )
-                self._skill_cards.append(card)
-                self._grid.mount(card)
-
-            # Select first skill if available
-            if self._skill_cards:
-                self._selected_index = 0
-                self._update_selection()
-
-    def _update_selection(self) -> None:
-        """Update the visual selection state of skill cards.
-
-        Sets focus on the currently selected card and removes focus from others.
-        """
-        if not self._skill_cards:
-            return
-
-        for i, card in enumerate(self._skill_cards):
-            if i == self._selected_index:
-                card.add_class("selected")
-            else:
-                card.remove_class("selected")
-
-        # Focus the selected card for visual feedback
-        if 0 <= self._selected_index < len(self._skill_cards):
-            self._skill_cards[self._selected_index].focus()
-
-    def action_navigate_up(self) -> None:
-        """Navigate up in the skill grid (move to previous row)."""
-        if not self._skill_cards or self._selected_index < 0:
-            return
-
-        # In a 2-column grid, move up 2 positions
-        new_index = self._selected_index - 2
-        if new_index < 0:
-            # Wrap around to bottom
-            new_index = len(self._skill_cards) - 1
-
-        self._selected_index = new_index
-        self._update_selection()
-
-    def action_navigate_down(self) -> None:
-        """Navigate down in the skill grid (move to next row)."""
-        if not self._skill_cards:
-            return
-
-        # In a 2-column grid, move down 2 positions
-        new_index = self._selected_index + 2
-        if new_index >= len(self._skill_cards):
-            # Wrap around to top
-            new_index = 0
-
-        self._selected_index = new_index
-        self._update_selection()
-
-    def action_navigate_left(self) -> None:
-        """Navigate left in the skill grid."""
-        if not self._skill_cards or self._selected_index < 0:
-            return
-
-        # Move left 1 position
-        new_index = self._selected_index - 1
-        if new_index < 0:
-            # Wrap around to end
-            new_index = len(self._skill_cards) - 1
-
-        self._selected_index = new_index
-        self._update_selection()
-
-    def action_navigate_right(self) -> None:
-        """Navigate right in the skill grid."""
-        if not self._skill_cards:
-            return
-
-        # Move right 1 position
-        new_index = self._selected_index + 1
-        if new_index >= len(self._skill_cards):
-            # Wrap around to start
-            new_index = 0
-
-        self._selected_index = new_index
-        self._update_selection()
+                self._list_view.append(item)
 
     def action_select(self) -> None:
-        """Select the currently highlighted skill.
-
-        Posts a SkillsSelected message with the skill name and dismisses the modal
-        with both name and description.
-        """
-        if not self._skill_cards or self._selected_index < 0:
+        """Select the currently highlighted skill."""
+        if not self._list_view or not self._skills:
             return
 
-        selected_skill = self._skill_cards[self._selected_index]
-        skill_name = selected_skill.get_skill_name()
-        skill_description = selected_skill.get_skill_description()
+        selected_index = self._list_view.index
+        if selected_index is None or selected_index < 0 or selected_index >= len(self._skills):
+            return
+
+        skill = self._skills[selected_index]
+        skill_name = skill.get("name", "")
+        skill_description = skill.get("description", "")
 
         self.post_message(SkillsSelected(skill_name))
-        # Return a dict with name and description
         self.dismiss({"name": skill_name, "description": skill_description})
 
     def action_cancel(self) -> None:
-        """Cancel the modal and close without selection.
-
-        Posts a SkillsCancelled message and dismisses with None.
-        """
+        """Cancel the modal and close without selection."""
         self.post_message(SkillsCancelled())
         self.dismiss(None)
 
-    def on_key(self, event) -> None:
-        """Handle key events.
-
-        Explicitly handle escape key to ensure modal closes.
-        """
-        if event.key == "escape":
-            event.prevent_default()
-            event.stop()
-            self.action_cancel()
-
-    def on_click(self, event) -> None:
-        """Handle click events on skill cards.
-
-        Args:
-            event: The click event from Textual.
-        """
-        # Check if a skill card was clicked
-        clicked_widget = event.widget
-        for i, card in enumerate(self._skill_cards):
-            if card == clicked_widget:
-                self._selected_index = i
-                self._update_selection()
-                self.action_select()
-                break
+    def on_list_view_selected(self, event) -> None:
+        """Handle list view selection (Enter key or click)."""
+        self.action_select()
